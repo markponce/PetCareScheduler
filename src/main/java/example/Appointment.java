@@ -1,9 +1,10 @@
 package example;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 
-public class Appointment {
+
+public class Appointment implements Serializable {
     public Appointment(String appointmentType, LocalDateTime dateTime, String notes) {
         this.appointmentType = appointmentType;
         this.dateTime = dateTime;

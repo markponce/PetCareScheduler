@@ -4,13 +4,13 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class PetCareScheduler {
 
@@ -35,16 +35,8 @@ public class PetCareScheduler {
     }
 
     public static void main(String[] args) {
+
         var petCareScheduler = new PetCareScheduler();
-//        var testAppointments = new ArrayList<>(
-//                List.of(
-//                        new Appointment("visist", LocalDateTime.parse("2025-12-21 06:45 PM", DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)), "sample note"),
-//                        new Appointment("visist 2", LocalDateTime.parse("2025-12-23 06:45 PM", DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)), "sample note 2")
-//
-//                )
-//        );
-//        petCareScheduler.pets.put("1", new Pet(
-//                "1", "Max", "aspin", 2, "mark", "09265708010", LocalDate.parse("2025-12-21", DateTimeFormatter.ofPattern(DATE_FORMAT)), testAppointments));
         while (true) {
             petCareScheduler.loadFromFile();
             var menuPrompt = "=== Pet Care Scheduler ===" +
@@ -54,7 +46,7 @@ public class PetCareScheduler {
                     "\n4. Display details of pets and/or appointments" +
                     "\n5. Generate reports" +
                     "\n6. Exit";
-//
+
             System.out.println(menuPrompt);
             var choice = petCareScheduler.getInput("Choose option: ");
             switch (choice) {
@@ -64,13 +56,18 @@ public class PetCareScheduler {
                 case "2":
                     petCareScheduler.scheduleAnAppointment();
                     continue;
-
                 case "3":
                     petCareScheduler.saveToFile();
                     continue;
                 case "4":
                     petCareScheduler.displayRecordMenu();
                     continue;
+                case "5":
+                    petCareScheduler.generateReport();
+                    continue;
+                case "6":
+                    petCareScheduler.saveToFile();
+                    break;
                 default:
                     System.out.println("Error: Invalid menu number");
             }
@@ -129,6 +126,7 @@ public class PetCareScheduler {
         System.out.println("New pet added: " + newPet);
 
         pets.put(id, newPet);
+        saveToFile();
         System.out.println("Pet successfully added to pets.");
     }
 
@@ -147,6 +145,9 @@ public class PetCareScheduler {
         LocalDateTime dateTime;
         try {
             dateTime = LocalDateTime.parse(dateTimeInput, DateTimeFormatter.ofPattern(DATE_TIME_FORMAT));
+            if (dateTime.isAfter(LocalDateTime.now())) {
+                System.out.println("Date time must be greater than now.");
+            }
         } catch (DateTimeParseException e) {
             System.out.println("Error: Unable to parse date time format.");
             return;
@@ -157,6 +158,7 @@ public class PetCareScheduler {
         var pet = pets.get(petId);
         var appointment = new Appointment(appointmentType, dateTime, notes);
         pet.getAppointments().add(appointment);
+        saveToFile();
         System.out.println("Successfully created new appointment: " + appointment);
     }
 
@@ -181,7 +183,7 @@ public class PetCareScheduler {
             var choice = getInput("Choose an options: ");
             switch (choice) {
                 case "1":
-                    displayPets(false, AppointmentFilter.NONE);
+                    displayPets(true, AppointmentFilter.NONE);
                     continue;
                 case "2":
                     displayPetAppointments();
@@ -203,7 +205,7 @@ public class PetCareScheduler {
     }
 
     public void displayPetAppointments() {
-        displayPets(false, AppointmentFilter.NONE);
+        displayPets(true, AppointmentFilter.NONE);
         var id = getInput("Enter id: ");
         if (id.isEmpty()) {
             System.out.println("Error: Id is empty.");
@@ -236,6 +238,10 @@ public class PetCareScheduler {
         displayPets(true, AppointmentFilter.SHOW_UPCOMING);
     }
 
+    public void generateReport() {
+        petsWithUpcomingAppointmentsNextWeek();
+        petsWithNoVisitForTheLastSixMonths();
+    }
 
     private void printPet(Pet pet, boolean showAppointment, AppointmentFilter appointmentFilter) {
         var printString = String.format("Id: %s, Name: %s, Breed: %s, Age: %s, Owner: %s, Contact Info: %s, Registration Date: %s", pet.getId(), pet.getName(), pet.getBreed(), pet.getAge(), pet.getOwnerName(), pet.getContactInfo(), pet.getRegistrationDate());
@@ -270,30 +276,15 @@ public class PetCareScheduler {
                         pet.getAppointments().forEach(appointment -> {
                             System.out.printf("- Appointment Type: %s, Date/Time: %s, Notes: %s\n", appointment.getAppointmentType(), appointment.getDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)), appointment.getNotes() == null || appointment.getNotes().isEmpty() ? "N/A" : appointment.getNotes());
                         });
-
                 }
-//                if (appointmentFilter.equals(A)) {
-//                    var showUpcomingAppointments = pet.getAppointments().stream().filter(a -> a.getDateTime().isAfter(LocalDateTime.now())).toList();
-//                    showUpcomingAppointments.forEach(a -> {
-//                        System.out.printf("- Appointment Type: %s, Date/Time: %s, Notes: %s\n", a.getAppointmentType(), a.getDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)), a.getNotes() == null || a.getNotes().isEmpty() ? "N/A" : a.getNotes());
-//
-//                    });
-//                } else {
-//                    pet.getAppointments().forEach(appointment -> {
-//                        System.out.printf("- Appointment Type: %s, Date/Time: %s, Notes: %s\n", appointment.getAppointmentType(), appointment.getDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)), appointment.getNotes() == null || appointment.getNotes().isEmpty() ? "N/A" : appointment.getNotes());
-//                    });
-//                }
-
             } else {
                 System.out.println("(No appointments yet.)");
             }
         }
-
-
     }
 
     private void saveToFile() {
-        try (ObjectOutputStream objectOutputStream = new ObjectOutputStream((new FileOutputStream("pets.ser")))) {
+        try (ObjectOutputStream objectOutputStream = new ObjectOutputStream((new FileOutputStream("pets.ser", false)))) {
             objectOutputStream.writeObject(pets);
             System.out.println("Pets successfully saved.");
         } catch (IOException e) {
@@ -311,11 +302,91 @@ public class PetCareScheduler {
 
         try (ObjectInputStream objectInputStream = new ObjectInputStream((new FileInputStream("pets.ser")))) {
             pets = (HashMap<String, Pet>) objectInputStream.readObject();
-            System.out.println("Pets successfully saved.");
+            System.out.println("Pets successfully loaded.");
         } catch (ClassNotFoundException e) {
             System.out.println("Error: Class not found.");
         } catch (IOException e) {
             System.out.println("Error: File not found.");
         }
+    }
+
+    private void petsWithUpcomingAppointmentsNextWeek() {
+        if (pets.isEmpty()) {
+            System.out.println("No pets/appointments to display");
+            return;
+        }
+
+        System.out.println("=== Pet with Upcoming Appointments Next Week List ===");
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // Find the next Monday
+        LocalDateTime firstDayNextWeek = now
+                .with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+
+        System.out.println("Next Monday: " + firstDayNextWeek);
+        var isEmptyList = true;
+        for (var pet : pets.values()) {
+            var appointments = pet.getAppointments();
+            var filteredAppointments = appointments.stream().filter(a -> a.getDateTime().isAfter(firstDayNextWeek)).toList();
+            if (!filteredAppointments.isEmpty()) {
+                isEmptyList = false;
+
+                var printString = String.format("Id: %s, Name: %s, Breed: %s, Age: %s, Owner: %s, Contact Info: %s, Registration Date: %s", pet.getId(), pet.getName(), pet.getBreed(), pet.getAge(), pet.getOwnerName(), pet.getContactInfo(), pet.getRegistrationDate());
+                var border = "";
+                for (int i = 0; i < printString.length(); i++) {
+                    border = border.concat("*");
+                }
+                System.out.println(border);
+                System.out.println(printString);
+                System.out.println("Appointments:");
+                for (var filteredAppointment : filteredAppointments) {
+                    System.out.printf("- Appointment Type: %s, Date/Time: %s, Notes: %s\n", filteredAppointment.getAppointmentType(), filteredAppointment.getDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)), filteredAppointment.getNotes() == null || filteredAppointment.getNotes().isEmpty() ? "N/A" : filteredAppointment.getNotes());
+                }
+                System.out.println(border);
+            }
+        }
+        if (isEmptyList) {
+            System.out.println("No pets/appointments to display");
+        }
+        System.out.println("=== end of list ===");
+    }
+
+    private void petsWithNoVisitForTheLastSixMonths() {
+        if (pets.isEmpty()) {
+            System.out.println("No pets/appointments to display");
+            return;
+        }
+
+        System.out.println("=== Pets With No Visit For The Last Six Months List ===");
+
+
+        LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6);
+
+        var isEmptyList = true;
+        for (var pet : pets.values()) {
+            var appointments = pet.getAppointments();
+            var filteredAppointments = appointments.stream().filter(a -> a.getDateTime().isBefore(sixMonthsAgo)).toList();
+            if (!filteredAppointments.isEmpty()) {
+                isEmptyList = false;
+
+                var printString = String.format("Id: %s, Name: %s, Breed: %s, Age: %s, Owner: %s, Contact Info: %s, Registration Date: %s", pet.getId(), pet.getName(), pet.getBreed(), pet.getAge(), pet.getOwnerName(), pet.getContactInfo(), pet.getRegistrationDate());
+                var border = "";
+                for (int i = 0; i < printString.length(); i++) {
+                    border = border.concat("*");
+                }
+                System.out.println(border);
+                System.out.println(printString);
+                System.out.println("Appointments:");
+                for (var filteredAppointment : filteredAppointments) {
+                    System.out.printf("- Appointment Type: %s, Date/Time: %s, Notes: %s\n", filteredAppointment.getAppointmentType(), filteredAppointment.getDateTime().format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)), filteredAppointment.getNotes() == null || filteredAppointment.getNotes().isEmpty() ? "N/A" : filteredAppointment.getNotes());
+                }
+                System.out.println(border);
+            }
+        }
+        if (isEmptyList) {
+            System.out.println("No pets/appointments to display");
+        }
+        System.out.println("=== end of list ===");
     }
 }
